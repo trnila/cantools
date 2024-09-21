@@ -67,6 +67,7 @@ class CanToolsMonitorTest(unittest.TestCase):
         try:
             self.assertEqual(mock.call_args_list, expected)
         except AssertionError as e:
+            verbose = True
             if verbose:
                 nl = ",\n "
                 print(f"Assertion failed:")
@@ -74,6 +75,11 @@ class CanToolsMonitorTest(unittest.TestCase):
                 print(f"Got: {nl.join(str(x) for x in mock.call_args_list)}")
                 print("Traceback:")
                 traceback.print_stack()
+
+                with open("/tmp/expected", "w") as f:
+                    f.write(nl.join(str(x) for x in expected))
+                with open("/tmp/got", "w") as f:
+                    f.write(nl.join(str(x) for x in mock.call_args_list))
             raise e
 
     @patch('can.Notifier')
