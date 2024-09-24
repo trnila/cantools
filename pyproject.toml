@@ -29,6 +29,7 @@ dependencies = [
     "diskcache",
     "argparse_addons",
     "crccheck",
+    "rich",
 ]
 dynamic = ["version"]
 
