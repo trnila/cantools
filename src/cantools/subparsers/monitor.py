@@ -416,13 +416,13 @@ class Monitor(can.Listener):
         formatted = None
         if self._single_line:
             formatted = [
-                f'{timestamp:12.3f} {dbmsg.name} (' \
+                f'{timestamp:12.3f}  {dbmsg.name} (' \
                 + ', '.join(contained_names) \
                 + ')'
             ]
         else:
             formatted = \
-                [ f'{timestamp:12.3f} {dbmsg.name} (' ] + \
+                [ f'{timestamp:12.3f}  {dbmsg.name} (' ] + \
                 [ 14*' ' +          f'    {x}' for x in contained_names ] + \
                 [ 14*' ' +          f')' ]
 
