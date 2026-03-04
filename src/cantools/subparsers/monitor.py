@@ -23,6 +23,8 @@ from .__utils__ import (
 )
 
 PAD_ID = 9
+PAD_STD_ID = 3
+PAD_EXT_ID = 8
 
 class QuitError(Exception):
     pass
@@ -292,6 +294,12 @@ class Monitor(can.Listener):
             self.page_up()
         elif key == 'KEY_NPAGE':
             self.page_down()
+        elif key == 'd':
+            self._id_column = IdColumn.Hidden if self._id_column == IdColumn.Dec else IdColumn.Dec
+            self.reformat_all_messages()
+        elif key == 'h':
+            self._id_column = IdColumn.Hidden if self._id_column == IdColumn.Hex else IdColumn.Hex
+            self.reformat_all_messages()
 
     def line_down(self):
         # Increment line
@@ -381,6 +389,10 @@ class Monitor(can.Listener):
         self.compile_filter()
 
         # reformat all messages
+        self.reformat_all_messages()
+
+
+    def reformat_all_messages(self):
         self._filtered_sorted_message_names.clear()
         self._message_signals.clear()
         self._formatted_messages.clear()
@@ -443,7 +455,7 @@ class Monitor(can.Listener):
             contained_names.append(cmsg_name)
 
         self._message_signals[dbmsg.name] = set(contained_names)
-        self._update_formatted_message(dbmsg.name, self._format_lines(timestamp, None, dbmsg.name, contained_names))
+        self._update_formatted_message(dbmsg.name, self._format_lines(timestamp, None, False, dbmsg.name, contained_names))
 
         # handle the contained messages just as normal messages but
         # prefix their names with the name of the container followed
@@ -472,9 +484,9 @@ class Monitor(can.Listener):
 
         filtered_signals = self._filter_signals(name, decoded_signals)
         formatted_signals = format_signals(message, filtered_signals)
-        return name, self._format_lines(timestamp, message.frame_id, name, formatted_signals)
+        return name, self._format_lines(timestamp, message.frame_id, message.is_extended_frame, name, formatted_signals)
 
-    def _format_lines(self, timestamp: float, msgid: int | None, name: str, items: list[str], single_line: bool=False) -> list[str]:        
+    def _format_lines(self, timestamp: float, msgid: int | None, is_extended: bool, name: str, items: list[str], single_line: bool=False) -> list[str]:        
         extra_columns = []
         pad = 14
         if self._id_column != IdColumn.Hidden:
@@ -483,7 +495,8 @@ class Monitor(can.Listener):
             elif self._id_column == IdColumn.Dec:
                 extra_columns.append(f'{msgid:{PAD_ID}d}')
             elif self._id_column == IdColumn.Hex:
-                extra_columns.append(f'{msgid:0{PAD_ID}x}')
+                pad_id = PAD_EXT_ID if is_extended else PAD_STD_ID
+                extra_columns.append(f'{msgid:0{pad_id}x}')
 
             pad += 2 + PAD_ID
         
@@ -528,6 +541,7 @@ class Monitor(can.Listener):
         formatted = self._format_lines(
             timestamp,
             None,
+            False,
             msg_name,
             [f'undecoded, {error}: 0x{data.hex()}'],
             single_line=True
