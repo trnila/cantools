@@ -22,6 +22,7 @@ from .__utils__ import (
     parse_additional_config,
 )
 
+PAD_ID = 9
 
 class QuitError(Exception):
     pass
@@ -30,6 +31,11 @@ class MessageFormattingResult(Enum):
     Ok = 0
     UnknownMessage = 1
     DecodeError = 2
+
+class IdColumn(Enum):
+    Hidden = 'hidden'
+    Dec = 'dec'
+    Hex = 'hex'
 
 class Monitor(can.Listener):
 
@@ -61,6 +67,7 @@ class Monitor(can.Listener):
         self._errors = 0
         self._basetime: float | None = None
         self._page_first_row = 0
+        self._id_column = IdColumn.Hidden
 
         if self._filter is not None:
             self.compile_filter()
@@ -167,9 +174,15 @@ class Monitor(can.Listener):
         self.addstr(row, 0, status_text)
 
     def draw_title(self, row):
+        extra_columns = []
+        if self._id_column != IdColumn.Hidden:
+            extra_columns.append(f"ID ({self._id_column.value})".rjust(PAD_ID))
+
+        columns = ['TIMESTAMP', *extra_columns, 'MESSAGE']
+
         self.addstr_color(row,
                           0,
-                          self.stretch('   TIMESTAMP  MESSAGE'),
+                          self.stretch(f'   {"  ".join(columns)}'),
                           curses.color_pair(1))
 
     def draw_menu(self, row):
@@ -430,7 +443,7 @@ class Monitor(can.Listener):
             contained_names.append(cmsg_name)
 
         self._message_signals[dbmsg.name] = set(contained_names)
-        self._update_formatted_message(dbmsg.name, self._format_lines(timestamp, dbmsg.name, contained_names))
+        self._update_formatted_message(dbmsg.name, self._format_lines(timestamp, None, dbmsg.name, contained_names))
 
         # handle the contained messages just as normal messages but
         # prefix their names with the name of the container followed
@@ -446,7 +459,7 @@ class Monitor(can.Listener):
                 else:
                     cdata_str = f'0x{cdata.hex()}'
 
-                formatted = self._format_lines(timestamp, full_name, [f'undecoded: {cdata_str}'])
+                formatted = self._format_lines(timestamp, dbmsg.frame_id, full_name, [f'undecoded: {cdata_str}'])
             else:
                 full_name, formatted = self._format_message(timestamp, cmsg, cdata, name_prefix=f'{dbmsg.name} :: ')
             self._update_formatted_message(full_name, formatted)
@@ -459,18 +472,30 @@ class Monitor(can.Listener):
 
         filtered_signals = self._filter_signals(name, decoded_signals)
         formatted_signals = format_signals(message, filtered_signals)
-        return name, self._format_lines(timestamp, name, formatted_signals)
+        return name, self._format_lines(timestamp, message.frame_id, name, formatted_signals)
 
-    def _format_lines(self, timestamp: float, name: str, items: list[str], single_line: bool=False) -> list[str]:
-        prefix = f'{timestamp:12.3f}  {name}('
+    def _format_lines(self, timestamp: float, msgid: int | None, name: str, items: list[str], single_line: bool=False) -> list[str]:        
+        extra_columns = []
+        pad = 14
+        if self._id_column != IdColumn.Hidden:
+            if msgid is None:
+                extra_columns.append(' ' * PAD_ID)
+            elif self._id_column == IdColumn.Dec:
+                extra_columns.append(f'{msgid:{PAD_ID}d}')
+            elif self._id_column == IdColumn.Hex:
+                extra_columns.append(f'{msgid:0{PAD_ID}x}')
+
+            pad += 2 + PAD_ID
+        
+        prefix = '  '.join([f'{timestamp:12.3f}', *extra_columns, f'{name}('])
         if self._single_line or single_line:
             formatted = [
                 f'''{prefix}{', '.join(items)})'''
             ]
         else:
             formatted = [prefix]
-            formatted += [f"{' ':<18}{line}{',' if index + 1 < len(items) else ''}" for index, line in enumerate(items)]
-            formatted += [f"{' ':<14})"]
+            formatted += [f"{' ':<{pad+4}}{line}{',' if index + 1 < len(items) else ''}" for index, line in enumerate(items)]
+            formatted += [f"{' ':<{pad}})"]
         return formatted
 
 
@@ -502,6 +527,7 @@ class Monitor(can.Listener):
     def _update_message_error(self, timestamp, msg_name, data, error):
         formatted = self._format_lines(
             timestamp,
+            None,
             msg_name,
             [f'undecoded, {error}: 0x{data.hex()}'],
             single_line=True
