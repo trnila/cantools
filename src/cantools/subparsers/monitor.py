@@ -496,7 +496,7 @@ class Monitor(can.Listener):
                 extra_columns.append(f'{msgid:{PAD_ID}d}')
             elif self._id_column == IdColumn.Hex:
                 pad_id = PAD_EXT_ID if is_extended else PAD_STD_ID
-                extra_columns.append(f'{msgid:0{pad_id}x}')
+                extra_columns.append(f'{msgid:0{pad_id}x}'.rjust(PAD_ID))
 
             pad += 2 + PAD_ID
         
